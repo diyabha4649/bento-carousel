@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Bento Carousel</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Figtree:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        fontFamily: {
+          serif: ['Instrument Serif', 'serif'],
+          sans:  ['Figtree', 'sans-serif'],
+        }
+      }
+    }
+  </script>
+  <style>
+    /* ── Base (mobile-first): stacked layout ────────────── */
+    .slide {
+      display: flex;
+      gap: 16px;
+      align-items: stretch;
+      flex-direction: column;
+      width: 85vw;
+      height: calc(100vh - 200px);
+    }
+    .slide-text { width: 100%; flex-shrink: 0; }
+    .slide-image { flex: 1; min-height: 0; }
+    #carouselTrack { height: calc(100vh - 200px); }
+    .slide-title { font-size: 1.6rem; }
+
+    /* ── md (768px+): side-by-side layout ──────────────── */
+    @media (min-width: 768px) {
+      .slide {
+        flex-direction: row;
+        width: 860px;
+        height: 400px;
+      }
+      .slide-text { width: 400px; }
+      .slide-image { min-width: 0; min-height: unset; }
+      #carouselTrack { height: 400px; }
+      .slide-title { font-size: 3rem; }
+    }
+  </style>
+</head>
+
+<body class="bg-[#1a1a1a] min-h-screen flex flex-col items-center justify-center overflow-x-hidden select-none font-sans">
+
+  <h1 class="font-serif text-[clamp(2rem,3.5vw,3rem)] text-white text-center mb-12 font-normal tracking-[-0.01em]">
+    John's favorite features
+  </h1>
+
+  <div class="w-screen overflow-hidden relative flex items-center cursor-grab" id="carouselViewport">
+    <!-- Desktop arrows: absolute over the track, hidden on mobile -->
+    <button
+      id="prevBtn"
+      aria-label="Previous"
+      class="hidden md:flex absolute top-1/2 -translate-y-1/2 left-7 z-20 items-center justify-center w-[46px] h-[46px] rounded-full bg-white/[0.08] border border-white/[0.12] text-white text-base hover:bg-white/[0.18] transition-colors duration-200"
+    >&#8592;</button>
+
+    <div class="relative w-full" id="carouselTrack"></div>
+
+    <button
+      id="nextBtn"
+      aria-label="Next"
+      class="hidden md:flex absolute top-1/2 -translate-y-1/2 right-7 z-20 items-center justify-center w-[46px] h-[46px] rounded-full bg-white/[0.08] border border-white/[0.12] text-white text-base hover:bg-white/[0.18] transition-colors duration-200"
+    >&#8594;</button>
+  </div>
+
+  <!-- Mobile arrows: below the carousel, hidden on desktop -->
+  <div class="flex md:hidden justify-center gap-6 mt-8">
+    <button
+      id="prevBtnMob"
+      aria-label="Previous"
+      class="flex items-center justify-center w-[46px] h-[46px] rounded-full bg-white/[0.08] border border-white/[0.12] text-white text-base hover:bg-white/[0.18] transition-colors duration-200"
+    >&#8592;</button>
+    <button
+      id="nextBtnMob"
+      aria-label="Next"
+      class="flex items-center justify-center w-[46px] h-[46px] rounded-full bg-white/[0.08] border border-white/[0.12] text-white text-base hover:bg-white/[0.18] transition-colors duration-200"
+    >&#8594;</button>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+
+  <script>
+  // ── Config ──────────────────────────────────────────────
+  const GAP        = 24;   // gap between slides in the carousel
+  const DUR        = 0.7;
+  const BREAKPOINT = 768; // matches Tailwind `md`
+
+  gsap.defaults({ overwrite: 'auto' });
+
+  // ── Responsive helpers ───────────────────────────────────
+  // slideW() must stay in sync with the CSS .slide width rule above.
+  function isMobile() { return window.innerWidth < BREAKPOINT; }
+  function slideW()   { return isMobile() ? Math.round(window.innerWidth * 0.85) : 860; }
+
+  // ── Slide data ──────────────────────────────────────────
+  const DATA = [
+    {
+      title: ['Reminder notifications'],
+      body:  'Automate text or email appointment reminders, confirmations, promotions, and more to cut down on no-shows and save you time',
+      img:   './images/image-1.png',
+      alt:   'Two people talking'
+    },
+    {
+      title: ['Email & text marketing'],
+      body:  'Automate email and text marketing to connect with clients at scale',
+      img:   './images/image-2.png',
+      alt:   'Man smiling'
+    },
+    {
+      title: ['Forms'],
+      body:  'Use templates or create custom forms to send out and automatically sync to client profiles',
+      img:   './images/image-3.png',
+      alt:   'Calendar scheduling'
+    },
+  ];
+
+  const N = DATA.length;
+
+  // ── Build DOM ────────────────────────────────────────────
+  const track    = document.getElementById('carouselTrack');
+  const viewport = document.getElementById('carouselViewport');
+
+  function makeSlide(data) {
+    const el = document.createElement('div');
+    // Dimensions and flex direction come from the CSS block above.
+    // Tailwind is only used for typography and colour utilities here.
+    el.className = 'slide absolute top-0 left-0 cursor-pointer';
+    el.innerHTML = `
+      <div class="slide-text rounded-[20px] p-7 flex flex-col justify-between overflow-hidden">
+        <div class="slide-title font-serif font-normal leading-[1.15]">
+          ${data.title.map(l =>
+            `<span class="overflow-hidden block"><span class="block line-inner">${l}</span></span>`
+          ).join('')}
+        </div>
+        <p class="slide-body text-md font-normal leading-[1.7]">${data.body}</p>
+      </div>
+      <div class="slide-image rounded-[20px] overflow-hidden">
+        <img src="${data.img}" alt="${data.alt}" loading="lazy"
+             class="w-full h-full object-cover block pointer-events-none" />
+      </div>`;
+    return el;
+  }
+
+  const slides = DATA.map(d => {
+    const el = makeSlide(d);
+    track.appendChild(el);
+    return el;
+  });
+
+  // ── Virtual scroll state ─────────────────────────────────
+  const proxy    = { v: 0 };
+  let virtualPos  = 0;
+  let activeIdx   = 0;
+  let isAnimating = false;
+
+  // ── Per-slide positioning ────────────────────────────────
+  function slideScreenX(i, vPos) {
+    const sw     = slideW();
+    const stride = sw + GAP;
+    const total  = N * stride;
+    const vpHalf = viewport.offsetWidth / 2;
+    let   offset = i * stride - vPos;
+    offset = ((offset % total) + total) % total;
+    if (offset >= total / 2) offset -= total;
+    return vpHalf - sw / 2 + offset;
+  }
+
+  function positionAll(vPos) {
+    slides.forEach((s, i) => gsap.set(s, { x: slideScreenX(i, vPos) }));
+  }
+
+  function getCenteredIdx(vPos) {
+    const stride = slideW() + GAP;
+    return (((Math.round(vPos / stride) % N) + N) % N);
+  }
+
+  // ── Text animation (initial load only) ──────────────────
+  function textIn(slide) {
+    gsap.fromTo(slide.querySelectorAll('.line-inner'),
+      { y: '105%' },
+      { y: '0%', duration: 0.65, stagger: 0.08, delay: 0.05, ease: 'power3.out' }
+    );
+    gsap.fromTo(slide.querySelector('.slide-body'),
+      { opacity: 0, y: 14 },
+      { opacity: 1, y: 0, duration: 0.5, delay: 0.3, ease: 'power2.out' }
+    );
+  }
+
+  // ── Visual state ─────────────────────────────────────────
+  function setActive(slide, instant) {
+    const text = slide.querySelector('.slide-text');
+    const d    = instant ? 0 : DUR;
+    gsap.to(slide, { opacity: 1, scale: 1,      duration: d, ease: 'power3.inOut' });
+    gsap.to(text,  { backgroundColor: '#ffffff', duration: d * 0.7, ease: 'power2.inOut' });
+    gsap.to(slide.querySelector('.slide-title'), { color: '#333333', duration: d * 0.5 });
+    gsap.to(slide.querySelector('.slide-body'),  { color: '#666666', duration: d * 0.5 });
+  }
+
+  function setInactive(slide, instant) {
+    const text = slide.querySelector('.slide-text');
+    const d    = instant ? 0 : DUR;
+    gsap.to(slide, { opacity: 0.4, scale: 0.93,  duration: d, ease: 'power3.inOut' });
+    gsap.to(text,  { backgroundColor: '#434343', duration: d * 0.7, ease: 'power2.inOut' });
+    gsap.set(slide.querySelector('.slide-title'), { color: '#ffffff' });
+    gsap.set(slide.querySelector('.slide-body'),  { color: 'rgba(255,255,255,0.7)' });
+  }
+
+  // ── Core animator ────────────────────────────────────────
+  function animateTo(targetVPos, dur, ease) {
+    const nextIdx = getCenteredIdx(targetVPos);
+
+    if (nextIdx !== activeIdx) {
+      setInactive(slides[activeIdx], false);
+      setActive(slides[nextIdx], false);
+      activeIdx = nextIdx;
+    }
+
+    isAnimating = true;
+    gsap.killTweensOf(proxy);
+
+    gsap.to(proxy, {
+      v: targetVPos,
+      duration: dur,
+      ease: ease,
+      onUpdate:  () => positionAll(proxy.v),
+      onComplete: () => {
+        const stride = slideW() + GAP;
+        virtualPos = ((targetVPos % (N * stride)) + N * stride) % (N * stride);
+        proxy.v    = virtualPos;
+        positionAll(virtualPos);
+        isAnimating = false;
+      }
+    });
+
+    virtualPos = targetVPos;
+  }
+
+  // ── Navigate ─────────────────────────────────────────────
+  function navigate(dir) {
+    if (isAnimating) return;
+    animateTo(virtualPos + dir * (slideW() + GAP), DUR, 'power3.inOut');
+  }
+
+  // ── Drag ─────────────────────────────────────────────────
+  let isDragging   = false;
+  let dragStartX   = 0;
+  let dragBaseVPos = 0;
+  let lastDragDx   = 0;
+
+  function onDragStart(x, target) {
+    if (target && target.closest('button')) return; // let button clicks through
+    isDragging   = true;
+    dragStartX   = x;
+    dragBaseVPos = proxy.v;
+    gsap.killTweensOf(proxy);
+    isAnimating  = false;
+    viewport.style.cursor = 'grabbing';
+  }
+
+  function onDragMove(x) {
+    if (!isDragging) return;
+    const vPos = dragBaseVPos - (x - dragStartX);
+    proxy.v    = vPos;
+    positionAll(vPos);
+  }
+
+  function onDragEnd(x) {
+    if (!isDragging) return;
+    isDragging = false;
+    viewport.style.cursor = 'grab';
+    lastDragDx = Math.abs(x - dragStartX);
+
+    const stride = slideW() + GAP;
+    if (lastDragDx > 60) {
+      const dir         = (x - dragStartX) < 0 ? 1 : -1;
+      const snappedBase = Math.round(dragBaseVPos / stride) * stride;
+      animateTo(snappedBase + dir * stride, DUR, 'power3.inOut');
+    } else {
+      const nearest = Math.round(proxy.v / stride) * stride;
+      animateTo(nearest, 0.4, 'power3.out');
+    }
+  }
+
+  // Mouse
+  viewport.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    onDragStart(e.clientX, e.target);
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', e => onDragMove(e.clientX));
+  window.addEventListener('mouseup',   e => { if (e.button === 0) onDragEnd(e.clientX); });
+
+  // Touch
+  viewport.addEventListener('touchstart', e => onDragStart(e.touches[0].clientX), { passive: true });
+  viewport.addEventListener('touchmove',  e => {
+    if (isDragging) { onDragMove(e.touches[0].clientX); e.preventDefault(); }
+  }, { passive: false });
+  viewport.addEventListener('touchend', e => onDragEnd(e.changedTouches[0].clientX));
+
+  // ── Arrow buttons ─────────────────────────────────────────
+  document.getElementById('prevBtn').addEventListener('click',    () => navigate(-1));
+  document.getElementById('nextBtn').addEventListener('click',    () => navigate(1));
+  document.getElementById('prevBtnMob').addEventListener('click', () => navigate(-1));
+  document.getElementById('nextBtnMob').addEventListener('click', () => navigate(1));
+
+  // ── Keyboard ─────────────────────────────────────────────
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight') navigate(1);
+    if (e.key === 'ArrowLeft')  navigate(-1);
+  });
+
+  // ── Click adjacent slide ──────────────────────────────────
+  track.addEventListener('click', e => {
+    if (lastDragDx > 5) return;
+    const slide = e.target.closest('.slide');
+    if (!slide) return;
+    const idx = slides.indexOf(slide);
+    if (idx < 0 || idx === activeIdx) return;
+    const diff = slideScreenX(idx, proxy.v) - slideScreenX(activeIdx, proxy.v);
+    if (Math.abs(diff) < slideW() * 2.5) navigate(diff > 0 ? 1 : -1);
+  });
+
+  // ── Resize: renormalize to keep activeIdx centred ────────
+  window.addEventListener('resize', () => {
+    const stride = slideW() + GAP;
+    virtualPos = activeIdx * stride;
+    proxy.v    = virtualPos;
+    positionAll(virtualPos);
+  });
+
+  // ── Init ─────────────────────────────────────────────────
+  (function init() {
+    slides.forEach(s => {
+      gsap.set(s, { opacity: 0.4, scale: 0.93 });
+      gsap.set(s.querySelector('.slide-text'),  { backgroundColor: '#434343' });
+      gsap.set(s.querySelector('.slide-title'), { color: '#ffffff' });
+      gsap.set(s.querySelector('.slide-body'),  { color: 'rgba(255,255,255,0.7)', opacity: 1, y: 0 });
+      gsap.set(s.querySelectorAll('.line-inner'), { y: '0%' });
+    });
+
+    positionAll(0);
+
+    const active = slides[0];
+    gsap.set(active.querySelectorAll('.line-inner'), { y: '105%' });
+    gsap.set(active.querySelector('.slide-body'),    { opacity: 0, y: 14 });
+    gsap.set(active, { opacity: 1, scale: 1 });
+    gsap.set(active.querySelector('.slide-text'),  { backgroundColor: '#ffffff' });
+    gsap.set(active.querySelector('.slide-title'), { color: '#333333' });
+
+    textIn(active);
+    gsap.to(active.querySelector('.slide-body'), { color: '#666666', duration: 0.4 });
+  })();
+  </script>
+</body>
+</html>
